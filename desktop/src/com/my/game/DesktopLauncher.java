@@ -8,6 +8,8 @@ public class DesktopLauncher {
 	public static void main (String[] arg) {
 		Lwjgl3ApplicationConfiguration config = new Lwjgl3ApplicationConfiguration();
 		config.setForegroundFPS(60);
+		config.setWindowSizeLimits(AmongStars.minWidth, AmongStars.minHeight,AmongStars.maxWidth, AmongStars.maxHeight);
+		config.setResizable(false);
 		config.setTitle("AmongStars");
 		new Lwjgl3Application(new com.my.game.AmongStars(), config);
 	}
