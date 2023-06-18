@@ -1,8 +1,10 @@
 package com.my.game;
 
-import java.util.Iterator;
 
-import com.badlogic.gdx.ApplicationAdapter;
+
+import java.util.ArrayList;
+import java.util.Random;
+
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input.Keys;
 import com.badlogic.gdx.Screen;
@@ -11,32 +13,22 @@ import com.badlogic.gdx.audio.Sound;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.Animation;
-import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
-import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Rectangle;
-import com.badlogic.gdx.math.Vector3;
-import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.badlogic.gdx.utils.TimeUtils;
 
 public class MyGame implements Screen {
-	private final Texture enemyImage;
-	private Texture laserImage;
-	private Texture spaceshipImage;
+
 	private Sound shotSound;
 	private Sound explosionSound;
-	private Music spaceMusic;
 	private SpriteBatch batch;
 	private OrthographicCamera camera;
 	private Rectangle spaceship;
-	private Array<Rectangle> enemies;
-	private Array<Rectangle> lasershots;
-	private long lastEnemySpawnTime;
-	private long lastShotTime;
-	private int score;
+	private ArrayList<Rectangle> enemies;
+	private ArrayList<Rectangle> lasershots;
 	final AmongStars game;
 	int count;
 	private final int spaceshipWidthPixels = 24;
@@ -48,38 +40,50 @@ public class MyGame implements Screen {
 	float stateTime;
 	public final float ShipAnimationSpeed = 1f/10f;
 	private final float RollSwitchTime = 1f/20f;
-	private final float BGanimationSpeed =  1f/12f;
-	private final float ExpAnimationSpeed =  1f/4f;
+	private final float BGanimationSpeed =  1f/10f;
+
 	private float rollTimer = 0;
+	private float shootTimer = 0;
+	private float EnemyBlueSpawnTimer;
+	private final float TimeBtwShot = 0.2f;
 	private final int BGwidthPixels = 514;
 	private final int BGheightPixels = 522 ;
 
 	TextureRegion[] animationFramesBG;
-	TextureRegion[] animationFramesExp;
 	 Animation BGanimation;
-	 Animation ExpAnimation;
 	private final int ShipMovementSpeed = 500;
-	private final int ExplosionWidth = 64;
-	private final int ExplosionHeight = 64;
+	ArrayList<Laser> Lasers;
+	ArrayList<EnemyBlue> EnemiesBlue;
+	ArrayList<Explosion> Explosions;
+	public static final float MIN_ENEMY_SPAWN_TIME = 0.4f;
+	public static final float MAX_ENEMY_SPAWN_TIME = 0.6f;
+	Random random;
+	Collision SpaceShipCollision;
+	int SpaceshipHealth = 10;
+	Texture pixel;
+	public Music spaceMusic;
+
 
 	public MyGame(final AmongStars game) {
+		random = new Random();
+		EnemyBlueSpawnTimer = random.nextFloat() * (MAX_ENEMY_SPAWN_TIME - MIN_ENEMY_SPAWN_TIME) + MIN_ENEMY_SPAWN_TIME;
 		this.game = game;
+		Lasers = new ArrayList<Laser>();
+		EnemiesBlue = new ArrayList<EnemyBlue>();
+		Explosions = new ArrayList<Explosion>();
+		pixel = new Texture("square.png");
 
-		enemyImage = new Texture(Gdx.files.internal("enemy.png"));
-		laserImage = new Texture(Gdx.files.internal("laser.png"));
-
-
-		spaceMusic = Gdx.audio.newMusic(Gdx.files.internal("music.wav"));
+		spaceMusic = Gdx.audio.newMusic(Gdx.files.internal("GameMusic.mp3"));
 		shotSound = Gdx.audio.newSound(Gdx.files.internal("shot.wav"));
 		explosionSound = Gdx.audio.newSound(Gdx.files.internal("explosion.wav"));
 
-
-//		spaceMusic.setLooping(true);
-//		spaceMusic.play();
+		spaceMusic.setVolume(0.1f);
+		spaceMusic.setLooping(true);
+		spaceMusic.play();
 
 
 		camera = new OrthographicCamera();
-		camera.setToOrtho(false, AmongStars.minWidth,AmongStars.minHeight );
+		camera.setToOrtho(false, AmongStars.minWidth, AmongStars.minHeight);
 		batch = new SpriteBatch();
 
 		rolls = new Animation[5];
@@ -92,17 +96,12 @@ public class MyGame implements Screen {
 		rolls[4] = new Animation(ShipAnimationSpeed, rollSpriteSheet[4]);
 
 		spaceship = new Rectangle();
-		spaceship.width = 64;
-		spaceship.height = 72;
+		spaceship.width = 56;
+		spaceship.height = 56;
 		spaceship.x = AmongStars.minWidth / 2 - spaceship.width / 2;
 		spaceship.y = 20;
-		enemies = new Array<Rectangle>();
-		spawnEnemy();
-		lasershots = new Array<Rectangle>();
-		spawnlaser();
-
-
-		TextureRegion[][] BgFrames = TextureRegion.split(new Texture("Game_BGround.png"),BGwidthPixels,BGheightPixels);
+		SpaceShipCollision = new Collision((float) 0, (float) 0, (int) spaceship.width, (int) spaceship.height);
+		TextureRegion[][] BgFrames = TextureRegion.split(new Texture("Game_BGround.png"), BGwidthPixels, BGheightPixels);
 		animationFramesBG = new TextureRegion[9];
 		int index = 0;
 		for (int i = 0; i < 9; i++) {
@@ -115,39 +114,9 @@ public class MyGame implements Screen {
 
 		BGanimation = new Animation(BGanimationSpeed, animationFramesBG);
 
-		TextureRegion[][] ExpFrames = TextureRegion.split(new Texture("Boom.png"),32,32);
-		animationFramesExp = new TextureRegion[14];
-		int index0 = 0;
-		for (int i = 0; i < 14; i++) {
-			for (int j = 0; j < 1; j++) {
-				animationFramesExp[index0++] = ExpFrames[j][i];
-
-
-			}
-		}
-		ExpAnimation = new Animation(ExpAnimationSpeed, animationFramesExp);
-
 	}
 
-	private void spawnlaser() {
-		Rectangle shot = new Rectangle();
-		shot.x = spaceship.x+18;
-		shot.y = spaceship.y+55;
-		shot.width = 32;
-		shot.height = 32;
-		lasershots.add(shot);
-		lastShotTime = TimeUtils.nanoTime();
-	}
 
-	private void spawnEnemy() {
-		Rectangle enemy = new Rectangle();
-		enemy.x = MathUtils.random(0, AmongStars.minWidth-64);
-		enemy.y = AmongStars.minHeight;
-		enemy.width = 88;
-		enemy.height = 54;
-		enemies.add(enemy);
-		lastEnemySpawnTime = TimeUtils.nanoTime();
-	}
 
 
 	@Override
@@ -157,45 +126,69 @@ public class MyGame implements Screen {
 
 	@Override
 	public void render(float delta) {
-		ScreenUtils.clear(0, 0, 0, 1);
-		camera.update();
-		stateTime +=delta;
-		game.batch.setProjectionMatrix(camera.combined);
+		stateTime += delta;
+		shootTimer += delta;
 		game.batch.begin();
 		game.batch.draw((TextureRegion) BGanimation.getKeyFrame(stateTime,true),0,0,AmongStars.minWidth,AmongStars.minHeight);
 		game.font.draw(game.batch, "Enemies killed: " + count, 0, 470);
+		game.font.draw(game.batch, "HP", 0, 0);
 		game.batch.draw((TextureRegion) rolls[roll].getKeyFrame(stateTime, true), spaceship.x, spaceship.y, spaceship.width, spaceship.height);
-		for (Rectangle enemy : enemies) {
-			game.batch.draw(enemyImage, enemy.x, enemy.y,enemy.width,enemy.height);
+
+		for (Laser laser: Lasers) {
+			laser.render(game.batch);
 		}
-		for (Rectangle shot : lasershots) {
-			game.batch.draw(laserImage, shot.x, shot.y,shot.width,shot.height);
-		}
-		for (Iterator<Rectangle> iter = enemies.iterator(); iter.hasNext(); ) {
-			Rectangle enemy = iter.next();
-			enemy.y -= 150 * Gdx.graphics.getDeltaTime();
-			if (enemy.y + 64 < 0) {
-				iter.remove();
-
-			}
-
-
-
-			for (Iterator<Rectangle> iten = lasershots.iterator(); iten.hasNext(); ) {
-				Rectangle shot = iten.next();
-				shot.y += 200 * Gdx.graphics.getDeltaTime();
-				if (shot.y > AmongStars.minWidth) iten.remove();
-				if (shot.overlaps(enemy)) {
-					count++;
-					explosionSound.play(0.5f);
-					iter.remove();
-					iten.remove();
-					game.batch.draw(laserImage,enemy.x,enemy.y,88,54);
-				}
-			}
+		for (EnemyBlue enemiesBlue: EnemiesBlue) {
+			enemiesBlue.render(game.batch);
 
 		}
+		for (Explosion explosion: Explosions) {
+			explosion.render(game.batch);
+		}
+		game.batch.draw(pixel, (float)0, (float)0, (float)(Gdx.graphics.getWidth() * SpaceshipHealth * 0.1), (float)15);
+		game.font.draw(game.batch, "HP", 5, 13);
 		game.batch.end();
+		if (SpaceshipHealth == 0) {
+			spaceMusic.pause();
+			game.setScreen(new GameOverScreen(game));
+		}
+		if (Gdx.input.isKeyPressed(Keys.SPACE) && shootTimer >= TimeBtwShot) {
+			shootTimer = 0;
+			Lasers.add(new Laser(spaceship.x+18, spaceship.y+55));
+			shotSound.play(0.1f);
+		}
+
+
+
+
+		ArrayList<EnemyBlue> EnemiesBlueRemove = new ArrayList<EnemyBlue>();
+		for (EnemyBlue enemyblue: EnemiesBlue) {
+			enemyblue.update();
+			if (enemyblue.remove == true) {
+				EnemiesBlueRemove.add(enemyblue);
+
+			}
+		}
+			EnemiesBlue.removeAll(EnemiesBlueRemove);
+		ArrayList<Laser> LasersRemove = new ArrayList<Laser>();
+		for (Laser laser: Lasers){
+			laser.update();
+			if (laser.remove == true) {
+				LasersRemove.add(laser);
+			}
+		}
+		Lasers.removeAll(LasersRemove);
+
+
+		ArrayList<Explosion> ExplsoinsRemove = new ArrayList<Explosion>();
+		for (Explosion explosion: Explosions) {
+			explosion.update();
+			if (explosion.remove == true) {
+				ExplsoinsRemove.add(explosion);
+			}
+		}
+
+		Explosions.removeAll(ExplsoinsRemove);
+
 
 		if(Gdx.input.isKeyJustPressed(Keys.LEFT) && !Gdx.input.isKeyJustPressed(Keys.RIGHT) && roll > 0) {
 			rollTimer = 0;
@@ -205,10 +198,12 @@ public class MyGame implements Screen {
 			rollTimer = 0;
 			roll++;
 		}
-
-
-		if (Gdx.input.isKeyPressed(Keys.UP)) spaceship.y += ShipMovementSpeed * Gdx.graphics.getDeltaTime();
-		if (Gdx.input.isKeyPressed(Keys.DOWN)) spaceship.y -= ShipMovementSpeed * Gdx.graphics.getDeltaTime();
+		if (Gdx.input.isKeyPressed(Keys.UP)) {
+			spaceship.y += ShipMovementSpeed * Gdx.graphics.getDeltaTime();
+		}
+		if (Gdx.input.isKeyPressed(Keys.DOWN)) {
+			spaceship.y -= ShipMovementSpeed * Gdx.graphics.getDeltaTime();
+		}
 
 		if (Gdx.input.isKeyPressed(Keys.LEFT)) {
 			spaceship.x -= ShipMovementSpeed * Gdx.graphics.getDeltaTime();
@@ -256,18 +251,45 @@ public class MyGame implements Screen {
 			}
 		}
 
-		if (TimeUtils.nanoTime() - lastShotTime > 700000000) shotSound.play(0.1f);
-
-
+		SpaceShipCollision.move(spaceship.x, spaceship.y);
 		if (spaceship.y < 0) spaceship.y = 0;
 		if (spaceship.y > AmongStars.minHeight - spaceship.height) spaceship.y = AmongStars.minHeight - spaceship.height;
 		if (spaceship.x < 0) spaceship.x = 0;
 		if (spaceship.x > AmongStars.minWidth - spaceship.width) spaceship.x = AmongStars.minWidth - spaceship.width;
-		if (TimeUtils.nanoTime() - lastEnemySpawnTime > 1000000000) spawnEnemy();
-		if (TimeUtils.nanoTime() - lastShotTime > 700000000) spawnlaser();
+		EnemyBlueSpawnTimer -= delta;
+		if (EnemyBlueSpawnTimer <= 0) {
+			EnemyBlueSpawnTimer = random.nextFloat() * (MAX_ENEMY_SPAWN_TIME - MIN_ENEMY_SPAWN_TIME) + MIN_ENEMY_SPAWN_TIME;
+			EnemiesBlue.add(new EnemyBlue());
+		}
+		for (Laser laser: Lasers) {
+			for (EnemyBlue enemyblue: EnemiesBlue) {
+				if (laser.getCollision().collides(enemyblue.getCollision())) {
+					LasersRemove.add(laser);
+					EnemiesBlueRemove.add(enemyblue);
+					Explosions.add(new Explosion(enemyblue.getX(), enemyblue.getY()));
+					count++;
+					explosionSound.play(0.5f);
+				}
+			}
+		}
+		for (EnemyBlue enemyblue: EnemiesBlue) {
+			if (enemyblue.getCollision().collides(SpaceShipCollision)) {
+				EnemiesBlueRemove.add(enemyblue);
+				SpaceshipHealth -= 1;
+				explosionSound.play(0.5f);
+				Explosions.add(new Explosion(enemyblue.getX(), enemyblue.getY()));
+				count++;
+			}
+		}
+		for (EnemyBlue enemyblue: EnemiesBlue) {
+			if (enemyblue.getY() + EnemyBlue.Height - 2 < 0) {
+				SpaceshipHealth -= 1;
+			}
 
 
-
+		}
+		EnemiesBlue.removeAll(EnemiesBlueRemove);
+		Lasers.removeAll(LasersRemove);
 	}
 
 	@Override
@@ -293,10 +315,6 @@ public class MyGame implements Screen {
 
 	@Override
 	public void dispose() {
-
-		enemyImage.dispose();
-		spaceshipImage.dispose();
 		spaceMusic.dispose();
-		batch.dispose();
 	}
 }

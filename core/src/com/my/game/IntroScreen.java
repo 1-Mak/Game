@@ -25,7 +25,7 @@ public class IntroScreen implements Screen {
         private int exitButtonHeight = 75;
         final AmongStars game;
         OrthographicCamera camera;
-//        Texture bgTexture;
+
         Texture PlayButtonActive;
         Texture PlayButtonInactive;
         Texture ExitButtonActive;

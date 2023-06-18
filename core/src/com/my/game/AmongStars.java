@@ -23,6 +23,7 @@ public class AmongStars extends Game {
 
     @Override
     public void render() {
+
         super.render();
     }
 
